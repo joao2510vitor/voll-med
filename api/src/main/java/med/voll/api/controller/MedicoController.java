@@ -8,8 +8,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
 
@@ -20,10 +22,21 @@ public class MedicoController {
     @Autowired
     private MedicoRepository repository;
 
+    /*
+    *  O método cadastrar devolve o código 201 de criado com sucesso
+    *  Devolve também o cabeçalho location com a URI
+    *  Também devolve no corpo da resposta uma representação do recurso recém-criado
+    */
     @PostMapping
     @Transactional
-    public void cadastrar(@RequestBody @Valid DadosCadastroMedico dados){
-        repository.save(new Medico(dados));
+    public ResponseEntity cadastrar(@RequestBody @Valid DadosCadastroMedico dados, UriComponentsBuilder uriBuilder){
+
+        var medico = new Medico(dados);
+        repository.save(medico);
+
+        var uri = uriBuilder.path("/medicos/{id}").buildAndExpand(medico.getId()).toUri();//Gera automaticamente a URI
+
+        return ResponseEntity.created(uri).body(new DadosDetalhamentoMedico(medico)); //Mesmo DTO que usei no atualizar
     }
 
     /*
@@ -44,15 +57,18 @@ public class MedicoController {
     * No metodo abaixo eu passo os parametros default, eles podem ser sobrescritos pelos parametros da url
     */
     @GetMapping
-    public Page<DadosListagemMedico> listar(@PageableDefault(size = 10, sort = {"nome"}) Pageable paginacao){
-        return repository.findAllByAtivoTrue(paginacao).map(DadosListagemMedico::new);//Tive que criar um novo repository chamado DadosListagemMedico e construtor no repository
+    public ResponseEntity<Page<DadosListagemMedico>> listar(@PageableDefault(size = 10, sort = {"nome"}) Pageable paginacao){
+        var page = repository.findAllByAtivoTrue(paginacao).map(DadosListagemMedico::new);//Tive que criar um novo repository chamado DadosListagemMedico e construtor no repository
+        return ResponseEntity.ok(page);//Codigo 200 ok
     }
 
     @PutMapping
     @Transactional
-    public void atualizar(@RequestBody @Valid DadosAtualizacaoMedico dados){
+    public ResponseEntity atualizar(@RequestBody @Valid DadosAtualizacaoMedico dados){
         var medico = repository.getReferenceById(dados.id());
         medico.atualizarInformacoes(dados);
+
+        return ResponseEntity.ok(new DadosDetalhamentoMedico(medico)); //codigo 200 ok
     }
 
     /*
@@ -66,9 +82,11 @@ public class MedicoController {
 
     @DeleteMapping("/{id}")//O @PathVariable diz ao spring que o id é uma variavel do caminho da URL
     @Transactional
-    public void excluir(@PathVariable Long id){
+    public ResponseEntity excluir(@PathVariable Long id){
         var medico = repository.getReferenceById(id);
         medico.excluir();
+
+        return ResponseEntity.noContent().build();//Codigo 204 NoContent
     }
 
 }
